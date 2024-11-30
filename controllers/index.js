@@ -1,4 +1,5 @@
 const userModel = require("../models/index")
+const bcrypt = require("bcrypt")
 
 exports.getUser = async ( request,response) =>{
     const {username,password} = request.body  
@@ -6,11 +7,16 @@ exports.getUser = async ( request,response) =>{
         return response.status(400).json({message : "Please enter username or password"})
     }
     try{
-        const user = await userModel.findOne({username,password})  
+        const user = await userModel.findOne({username})  
         if(!user){
-            return response.status(400).json({message : "No such user found. Check your credentials and try again!"})
-        }    
-        return response.status(200).json({result : user, totalCount : 1 })
+            return response.status(400).json({message : "No such username found."})
+        }
+        
+        const isPasswordValid = await bcrypt.compare(password,user.password)
+        if(!isPasswordValid){
+            return response.status(400).json({message : "Invalid Password"})
+        }
+        return response.status(200).json({message : "User Authencated Successfully" ,result : {username }, totalCount : 1 })
     }
     catch(error){
         return response.status(500).json({message : "An Error has been occured at the server.Please try again", details : error.message})
@@ -30,8 +36,11 @@ exports.newUser = async(request,response) => {
         if(existingUser.length>0){
             return response.status(400).json({message : "An user already exists with the same username. Please provide another username"})
         }
-        const newUser = new userModel({username,password})
-        const saveNewUser = await newUser.save();
+        const saltRounds = 10
+        const hashedPassword = await bcrypt.hash(password,saltRounds)
+
+        const newUser = new userModel({username ,password : hashedPassword})
+        await newUser.save();
         return response.status(200).json({message : "User Successfully Created"})
     }
     catch(error){
